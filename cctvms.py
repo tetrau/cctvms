@@ -17,13 +17,13 @@ class CCTVMS:
         self.datetime_format = datetime_format
 
     def record(self):
-        subprocess.run(
+        p = subprocess.run(
             ["vlc", self.rtsp,
              "--sout=file/mp4:{}".format(os.path.join(self.record_dir, self.output_filename())),
              "-I", "dummy",
              "--stop-time={}".format(int(self.segment)),
              "vlc://quit"],
-            stdout=subprocess.DEVNULL)
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     def output_filename(self):
         now = time.time()
