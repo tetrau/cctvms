@@ -10,13 +10,15 @@ logger.addHandler(logging.NullHandler())
 
 class CCTVMS:
     def __init__(self, rtsp, record_dir, segment=1800,
-                 prefix="record-", datetime_format="%Y-%m-%dT%H:%M", alignment=True):
+                 prefix="record-", datetime_format="%Y-%m-%dT%H:%M", alignment=True,
+                 remove_older_than=None):
         self.rtsp = rtsp
         self.record_dir = os.path.abspath(record_dir)
         self.segment = int(segment)
         self.prefix = prefix
         self.datetime_format = datetime_format
         self.alignment = alignment
+        self.remove_older_than = remove_older_than
 
     def record(self):
         if self.alignment:
@@ -42,6 +44,21 @@ class CCTVMS:
         end = datetime.datetime.fromtimestamp(end).strftime(self.datetime_format)
         return "{}{}_{}.mp4".format(self.prefix, now, end)
 
+    def remove_old_files(self):
+        if not self.remove_older_than:
+            return
+        for filename in os.listdir(self.record_dir):
+            if filename.startswith(self.prefix):
+                timestamps = filename[len(self.prefix):-4]
+                try:
+                    _, end = timestamps.split("_")
+                    end = datetime.datetime.strptime(self.datetime_format, end)
+                except ValueError:
+                    continue
+                if time.time() - end.timestamp() > self.remove_older_than:
+                    os.remove(os.path.join(self.record_dir, filename))
+
     def run(self):
         while True:
+            self.remove_old_files()
             self.record()
