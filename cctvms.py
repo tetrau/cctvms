@@ -8,6 +8,20 @@ logger = logging.getLogger("cctvms")
 logger.addHandler(logging.NullHandler())
 
 
+class VLCRecordingError(Exception):
+    def __init__(self, stdout, stderr):
+        self.stdout = stdout
+        self.stderr = stderr
+
+    def __str__(self):
+        r = "VLC exited earlier than excepted\n" \
+            "stdout:\n" \
+            "{}\n" \
+            "stderr:\n" \
+            "{}".format(self.stdout.decode(), self.stderr.decode())
+        return r
+
+
 class CCTVMS:
     def __init__(self, rtsp, record_dir, segment=1800,
                  prefix="record-", datetime_format="%Y-%m-%dT%H:%M", alignment=True,
@@ -20,6 +34,9 @@ class CCTVMS:
         self.alignment = alignment
         self.remove_older_than = remove_older_than
 
+    def error_handler(self, stdout, stderr):
+        raise VLCRecordingError(stdout, stderr)
+
     def record(self):
         if self.alignment:
             now = int(time.time())
@@ -28,13 +45,17 @@ class CCTVMS:
             duration = self.segment
         filename = self.output_filename(duration)
         logger.info("start recording rtsp stream to {}".format(filename))
+        start = time.time()
         p = subprocess.run(
             ["vlc", self.rtsp,
              "--sout=file/mp4:{}".format(os.path.join(self.record_dir, filename)),
              "-I", "dummy",
              "--stop-time={}".format(duration),
              "vlc://quit"],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        actual_duration = time.time() - start
+        if actual_duration < duration - 3:
+            self.error_handler(p.stdout, p.stderr)
         logger.info("end recording")
 
     def output_filename(self, duration):
@@ -60,5 +81,5 @@ class CCTVMS:
 
     def run(self):
         while True:
-            self.remove_old_files()
             self.record()
+            self.remove_old_files()
