@@ -9,16 +9,18 @@ logger.addHandler(logging.NullHandler())
 
 
 class VLCRecordingError(Exception):
-    def __init__(self, stdout, stderr):
+    def __init__(self, stdout, stderr, message=None):
         self.stdout = stdout
         self.stderr = stderr
+        self.message = message
 
     def __str__(self):
-        r = "VLC exited earlier than excepted\n" \
+        message = self.message if self.message is not None else "VLC exited earlier than excepted"
+        r = "{}\n" \
             "stdout:\n" \
             "{}\n" \
             "stderr:\n" \
-            "{}".format(self.stdout.decode(), self.stderr.decode())
+            "{}".format(message, self.stdout.decode(), self.stderr.decode())
         return r
 
 
@@ -34,8 +36,8 @@ class CCTVMS:
         self.alignment = alignment
         self.remove_older_than = remove_older_than
 
-    def error_handler(self, stdout, stderr):
-        raise VLCRecordingError(stdout, stderr)
+    def error_handler(self, stdout, stderr, message=None):
+        raise VLCRecordingError(stdout, stderr, message)
 
     def record(self):
         if self.alignment:
@@ -47,15 +49,24 @@ class CCTVMS:
         logger.info("start recording rtsp stream to {}".format(filename))
         start = time.time()
         p = subprocess.run(
-            ["vlc", self.rtsp,
+            ["vlc", "-vvv", self.rtsp,
              "--sout=file/mp4:{}".format(os.path.join(self.record_dir, filename)),
              "-I", "dummy",
              "--stop-time={}".format(duration),
              "vlc://quit"],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        actual_duration = time.time() - start
+        end = time.time()
+        actual_duration = end - start
         if actual_duration < duration - 3:
-            self.error_handler(p.stdout, p.stderr)
+            message = "VLC exited earlier than excepted\n" \
+                      "start: {}\n" \
+                      "end: {}\n" \
+                      "actual duration: {} s\n" \
+                      "excepted duration: {} s".format(datetime.datetime.fromtimestamp(start).isoformat(),
+                                                       datetime.datetime.fromtimestamp(end).isoformat(),
+                                                       actual_duration,
+                                                       duration)
+            self.error_handler(p.stdout, p.stderr, message)
         logger.info("end recording")
 
     def output_filename(self, duration):
