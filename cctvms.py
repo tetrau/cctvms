@@ -27,7 +27,7 @@ class VLCRecordingError(Exception):
 class CCTVMS:
     def __init__(self, rtsp, record_dir, segment=1800,
                  prefix="record-", datetime_format="%Y-%m-%dT%H:%M", alignment=True,
-                 remove_older_than=None):
+                 remove_older_than=None, max_retries=3):
         self.rtsp = rtsp
         self.record_dir = os.path.abspath(record_dir)
         self.segment = int(segment)
@@ -35,9 +35,22 @@ class CCTVMS:
         self.datetime_format = datetime_format
         self.alignment = alignment
         self.remove_older_than = remove_older_than
+        self.max_retries = max_retries
 
     def error_handler(self, stdout, stderr, message=None):
         raise VLCRecordingError(stdout, stderr, message)
+
+    def retry(self, e):
+        for i in range(self.max_retries):
+            logger.error("start retry, {} time(s)".format(i + 1))
+            try:
+                self.record()
+                return
+            except VLCRecordingError as e:
+                logger.error("retry failed")
+                time.sleep(10)
+        logger.critical("max retries exceeded")
+        raise e
 
     def record(self):
         if self.alignment:
@@ -90,7 +103,13 @@ class CCTVMS:
                 if time.time() - end.timestamp() > self.remove_older_than:
                     os.remove(os.path.join(self.record_dir, filename))
 
+    def cycle(self):
+        try:
+            self.record()
+        except VLCRecordingError as e:
+            self.retry(e)
+        self.remove_old_files()
+
     def run(self):
         while True:
-            self.record()
-            self.remove_old_files()
+            self.cycle()
