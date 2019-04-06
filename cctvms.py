@@ -37,9 +37,6 @@ class CCTVMS:
         self.remove_older_than = remove_older_than
         self.max_retries = max_retries
 
-    def error_handler(self, stdout, stderr, message=None):
-        raise VLCRecordingError(stdout, stderr, message)
-
     def retry(self, e):
         for i in range(self.max_retries):
             logger.error("start retry, {} time(s)".format(i + 1))
@@ -79,7 +76,7 @@ class CCTVMS:
                                                        datetime.datetime.fromtimestamp(end).isoformat(),
                                                        actual_duration,
                                                        duration)
-            self.error_handler(p.stdout, p.stderr, message)
+            raise VLCRecordingError(p.stdout, p.stderr, message)
         logger.info("end recording")
 
     def output_filename(self, duration):
