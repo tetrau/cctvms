@@ -9,13 +9,24 @@ logger.addHandler(logging.NullHandler())
 
 
 class VLCRecordingError(Exception):
-    def __init__(self, stdout, stderr, message=None):
+    def __init__(self, stdout, stderr, start, end, duration, actual_duration, record_filename):
         self.stdout = stdout
         self.stderr = stderr
-        self.message = message
+        self.start = start
+        self.end = end
+        self.duration = duration
+        self.actual_duration = actual_duration
+        self.record_filename = record_filename
 
     def __str__(self):
-        message = self.message if self.message is not None else "VLC exited earlier than excepted"
+        message = "VLC exited earlier than excepted\n" \
+                  "start: {}\n" \
+                  "end: {}\n" \
+                  "actual duration: {} s\n" \
+                  "excepted duration: {} s".format(datetime.datetime.fromtimestamp(self.start).isoformat(),
+                                                   datetime.datetime.fromtimestamp(self.end).isoformat(),
+                                                   self.actual_duration,
+                                                   self.duration)
         r = "{}\n" \
             "stdout:\n" \
             "{}\n" \
@@ -27,7 +38,7 @@ class VLCRecordingError(Exception):
 class CCTVMS:
     def __init__(self, rtsp, record_dir, segment=1800,
                  prefix="record-", datetime_format="%Y-%m-%dT%H:%M", alignment=True,
-                 remove_older_than=None, max_retries=3):
+                 remove_older_than=None, max_retries=3, retry_interval=10):
         self.rtsp = rtsp
         self.record_dir = os.path.abspath(record_dir)
         self.segment = int(segment)
@@ -36,6 +47,7 @@ class CCTVMS:
         self.alignment = alignment
         self.remove_older_than = remove_older_than
         self.max_retries = max_retries
+        self.retry_interval = retry_interval
 
     def retry(self, e):
         for i in range(self.max_retries):
@@ -45,7 +57,8 @@ class CCTVMS:
                 return
             except VLCRecordingError as e:
                 logger.error("retry failed")
-                time.sleep(10)
+                self.correct_filename(e)
+                time.sleep(self.retry_interval)
         logger.critical("max retries exceeded")
         raise e
 
@@ -68,19 +81,17 @@ class CCTVMS:
         end = time.time()
         actual_duration = end - start
         if actual_duration < duration - 3:
-            message = "VLC exited earlier than excepted\n" \
-                      "start: {}\n" \
-                      "end: {}\n" \
-                      "actual duration: {} s\n" \
-                      "excepted duration: {} s".format(datetime.datetime.fromtimestamp(start).isoformat(),
-                                                       datetime.datetime.fromtimestamp(end).isoformat(),
-                                                       actual_duration,
-                                                       duration)
-            raise VLCRecordingError(p.stdout, p.stderr, message)
+            raise VLCRecordingError(stderr=p.stderr,
+                                    stdout=p.stdout,
+                                    start=start,
+                                    end=end,
+                                    actual_duration=actual_duration,
+                                    duration=duration,
+                                    record_filename=filename)
         logger.info("end recording")
 
-    def output_filename(self, duration):
-        now = time.time()
+    def output_filename(self, duration, start=None):
+        now = time.time() if start is None else start
         end = now + duration
         now = datetime.datetime.fromtimestamp(now).strftime(self.datetime_format)
         end = datetime.datetime.fromtimestamp(end).strftime(self.datetime_format)
@@ -100,10 +111,18 @@ class CCTVMS:
                 if time.time() - end.timestamp() > self.remove_older_than:
                     os.remove(os.path.join(self.record_dir, filename))
 
+    def correct_filename(self, e: VLCRecordingError):
+        filename = e.record_filename
+        correct_filename = self.output_filename(duration=e.actual_duration, start=e.start)
+        logger.info("correct filename from {} to {}".format(filename, correct_filename))
+        os.rename(os.path.join(self.record_dir, filename),
+                  os.path.join(self.record_dir, correct_filename))
+
     def cycle(self):
         try:
             self.record()
         except VLCRecordingError as e:
+            self.correct_filename(e)
             self.retry(e)
         self.remove_old_files()
 
