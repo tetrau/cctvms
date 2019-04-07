@@ -73,7 +73,7 @@ class CCTVMS:
         start = time.time()
         p = subprocess.run(
             ["vlc", "-vvv", self.rtsp,
-             "--sout=file/mp4:{}".format(os.path.join(self.record_dir, filename)),
+             "--sout=file/ts:{}".format(os.path.join(self.record_dir, filename)),
              "-I", "dummy",
              "--stop-time={}".format(duration),
              "vlc://quit"],
@@ -95,14 +95,14 @@ class CCTVMS:
         end = now + duration
         now = datetime.datetime.fromtimestamp(now).strftime(self.datetime_format)
         end = datetime.datetime.fromtimestamp(end).strftime(self.datetime_format)
-        return "{}{}_{}.mp4".format(self.prefix, now, end)
+        return "{}{}_{}.ts".format(self.prefix, now, end)
 
     def remove_old_files(self):
         if not self.remove_older_than:
             return
         for filename in os.listdir(self.record_dir):
             if filename.startswith(self.prefix):
-                timestamps = filename[len(self.prefix):-4]
+                timestamps = filename[len(self.prefix):-3]
                 try:
                     _, end = timestamps.split("_")
                     end = datetime.datetime.strptime(self.datetime_format, end)
