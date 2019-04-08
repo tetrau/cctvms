@@ -39,6 +39,21 @@ class CCTVMS:
     def __init__(self, rtsp, record_dir, segment=1800,
                  prefix="record-", datetime_format="%Y-%m-%dT%H:%M", alignment=True,
                  remove_older_than=None, max_retries=3, retry_interval=10):
+        """
+        :param rtsp: the rtsp stream url, should be something like rtsp://xxx.xx/xxx
+        :param record_dir: the direction where you store the recording files
+        :param segment: duration of each record segment/file in seconds (int only)
+        :param prefix: the recording filename prefix
+        :param datetime_format: the recording filename timestamp format
+        :param alignment: Alignment the recording segment starting time and
+                          ending time to integral multiple of segment length
+                          it will make the filenames more tidy
+        :param remove_older_than: remove recording file ended time older than
+                                  remove_older_than seconds
+        :param max_retries: retry times after error happened during recording,
+                            set to 0 to disable retry
+        :param retry_interval: interval between each retry in seconds
+        """
         self.rtsp = rtsp
         self.record_dir = os.path.abspath(record_dir)
         self.segment = int(segment)
