@@ -117,14 +117,17 @@ class CCTVMS:
             return
         for filename in os.listdir(self.record_dir):
             if filename.startswith(self.prefix):
-                timestamps = filename[len(self.prefix):-3]
+                filename = os.path.splitext(filename)[0]
+                timestamps = filename[len(self.prefix):]
                 try:
                     _, end = timestamps.split("_")
                     end = datetime.datetime.strptime(end, self.datetime_format)
                 except ValueError:
                     continue
                 if time.time() - end.timestamp() > self.remove_older_than:
-                    os.remove(os.path.join(self.record_dir, filename))
+                    file = os.path.join(self.record_dir, filename)
+                    logger.info("remove old file: {}".format(file))
+                    os.remove(file)
 
     def correct_filename(self, e: VLCRecordingError):
         filename = e.record_filename
