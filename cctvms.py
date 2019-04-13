@@ -120,7 +120,7 @@ class CCTVMS:
                 timestamps = filename[len(self.prefix):-3]
                 try:
                     _, end = timestamps.split("_")
-                    end = datetime.datetime.strptime(self.datetime_format, end)
+                    end = datetime.datetime.strptime(end, self.datetime_format)
                 except ValueError:
                     continue
                 if time.time() - end.timestamp() > self.remove_older_than:
