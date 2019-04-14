@@ -63,6 +63,7 @@ class CCTVMS:
         self.remove_older_than = remove_older_than
         self.max_retries = max_retries
         self.retry_interval = retry_interval
+        self._new_record_files = []
 
     def retry(self, e):
         for i in range(self.max_retries):
@@ -104,6 +105,7 @@ class CCTVMS:
                                     duration=duration,
                                     record_filename=filename)
         logger.info("end recording")
+        self._new_record_files.append(os.path.join(self.record_dir, filename))
 
     def output_filename(self, duration, start=None):
         now = time.time() if start is None else start
@@ -133,8 +135,10 @@ class CCTVMS:
         filename = e.record_filename
         correct_filename = self.output_filename(duration=e.actual_duration, start=e.start)
         logger.info("correct filename from {} to {}".format(filename, correct_filename))
-        os.rename(os.path.join(self.record_dir, filename),
-                  os.path.join(self.record_dir, correct_filename))
+        old_file_path = os.path.join(self.record_dir, filename)
+        new_file_path = os.path.join(self.record_dir, correct_filename)
+        os.rename(old_file_path, new_file_path)
+        self._new_record_files.append(new_file_path)
 
     def cycle(self):
         try:
@@ -143,6 +147,9 @@ class CCTVMS:
             self.correct_filename(e)
             self.retry(e)
         self.remove_old_files()
+        new_record_files = list(set(self._new_record_files))
+        self._new_record_files = []
+        return new_record_files
 
     def run(self):
         while True:
