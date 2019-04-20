@@ -119,6 +119,7 @@ class CCTVMS:
             return
         for filename in os.listdir(self.record_dir):
             if filename.startswith(self.prefix):
+                full_filename = filename
                 filename = os.path.splitext(filename)[0]
                 timestamps = filename[len(self.prefix):]
                 try:
@@ -127,7 +128,7 @@ class CCTVMS:
                 except ValueError:
                     continue
                 if time.time() - end.timestamp() > self.remove_older_than:
-                    file = os.path.join(self.record_dir, filename)
+                    file = os.path.join(self.record_dir, full_filename)
                     logger.info("remove old file: {}".format(file))
                     os.remove(file)
 
